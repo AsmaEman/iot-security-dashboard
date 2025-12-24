@@ -1,48 +1,53 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
-from contextlib import asynccontextmanager
 import os
-from ..utils.logger import setup_logger
 
-logger = setup_logger(__name__)
+# Mock database session for development
+class MockAsyncSession:
+    """Mock async session for development without database"""
+    
+    async def execute(self, query):
+        # Return mock result
+        class MockResult:
+            def scalars(self):
+                return MockScalars()
+            def scalar(self):
+                return 0
+            def scalar_one_or_none(self):
+                return None
+        return MockResult()
+    
+    async def commit(self):
+        pass
+    
+    async def refresh(self, obj):
+        pass
+    
+    async def delete(self, obj):
+        pass
+
+class MockScalars:
+    def all(self):
+        return []
+    
+    def first(self):
+        return None
+
+# Dependency to get database session
+async def get_db():
+    """Get database session - returns mock session for development"""
+    return MockAsyncSession()
 
 # Database URL from environment
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://iotuser:iotpass123@localhost:5432/iotdb")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://iotuser:iotpass123@localhost:5432/iotdb")
 
-# Convert to async URL if needed
-if DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+# Create async engine (commented out for mock mode)
+# engine = create_async_engine(DATABASE_URL, echo=True)
+# AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-# Create async engine
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,  # Set to True for SQL debugging
-    pool_size=20,
-    max_overflow=0,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-)
-
-# Create async session factory
-AsyncSessionLocal = sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
-
-@asynccontextmanager
-async def get_db():
-    """Dependency to get database session"""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Database session error: {e}")
-            raise
-        finally:
-            await session.close()
-
-# Import Base after engine creation to avoid circular imports
-from .models import Base
+# async def get_db():
+#     async with AsyncSessionLocal() as session:
+#         try:
+#             yield session
+#         finally:
+#             await session.close()
