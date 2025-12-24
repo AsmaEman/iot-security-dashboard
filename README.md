@@ -84,6 +84,8 @@ iot-security-dashboard/
 ├── docker-compose.yml     # Docker setup (optional)
 └── start-dev.bat         # Development startup script
 ```
+<img width="1898" height="755" alt="Screenshot 2025-12-24 084743" src="https://github.com/user-attachments/assets/9ececc23-39ca-4049-9840-594fb4002af6" />
+<img width="1336" height="859" alt="Screenshot 2025-12-24 084429" src="https://github.com/user-attachments/assets/f112c906-e7bd-4ef6-b1c5-9cefd1e2fb8a" />
 
 ## 🔒 Security Features
 
