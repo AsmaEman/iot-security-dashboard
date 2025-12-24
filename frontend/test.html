@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IoT Security Dashboard - Test Interface</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      background: #0a0a0a;
+      color: #ffffff;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .header {
+      background: #1a1a1a;
+      border: 1px solid #333333;
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 3rem;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #ffffff, #b0b0b0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header p {
+      color: #b0b0b0;
+      font-size: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .theme-toggle {
+      background: #2a2a2a;
+      border: 1px solid #333333;
+      color: #ffffff;
+      padding: 0.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      transition: all 0.3s ease;
+      width: 40px;
+      height: 40px;
+    }
+
+    .theme-toggle:hover {
+      background: #0a0a0a;
+      transform: scale(1.05);
+    }
+
+    .refresh-btn {
+      background: #ffffff;
+      color: #0a0a0a;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+    }
+
+    .refresh-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(255, 255, 255, 0.2);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .stat-card {
+      background: #1a1a1a;
+      border: 1px solid #333333;
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .stat-icon {
+      font-size: 2rem;
+      opacity: 0.8;
+    }
+
+    .stat-content h3 {
+      font-size: 0.85rem;
+      color: #b0b0b0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    .stat-number {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #333333;
+    }
+
+    .section-header h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .device-count {
+      color: #b0b0b0;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .devices-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .device-card {
+      background: #1a1a1a;
+      border: 1px solid #333333;
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .device-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      border-color: #ffffff;
+    }
+
+    .device-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #333333;
+    }
+
+    .device-title {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .device-icon {
+      font-size: 2rem;
+    }
+
+    .device-title h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .device-vendor {
+      color: #b0b0b0;
+      font-size: 0.85rem;
+    }
+
+    .device-badges {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      align-items: flex-end;
+    }
+
+    .risk-badge {
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-badge {
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-badge.active {
+      background: rgba(46, 213, 115, 0.2);
+      color: #2ed573;
+      border: 1px solid #2ed573;
+    }
+
+    .device-details {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .label {
+      font-weight: 500;
+      color: #b0b0b0;
+      font-size: 0.85rem;
+    }
+
+    .value {
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+      font-size: 0.85rem;
+      color: #ffffff;
+    }
+
+    .confidence-bar {
+      position: relative;
+      width: 100px;
+      height: 20px;
+      background: #2a2a2a;
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .confidence-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #2ed573, #26d0ce);
+      border-radius: 10px;
+      transition: width 0.3s ease;
+    }
+
+    .confidence-text {
+      position: relative;
+      z-index: 1;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      background: #1a1a1a;
+      border: 1px solid #333333;
+      border-radius: 12px;
+      margin: 2rem 0;
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #333333;
+      border-top: 3px solid #ffffff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .error {
+      text-align: center;
+      padding: 3rem;
+      background: #1a1a1a;
+      border: 1px solid #ff4757;
+      border-radius: 12px;
+      margin: 2rem 0;
+    }
+
+    .error-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .error h3 {
+      color: #ff4757;
+      margin-bottom: 0.5rem;
+    }
+
+    .retry-btn {
+      background: #ffffff;
+      color: #0a0a0a;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    .retry-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(255, 255, 255, 0.2);
+    }
+
+    .footer {
+      background: #1a1a1a;
+      border: 1px solid #333333;
+      border-radius: 12px;
+      padding: 2rem;
+      margin-top: 3rem;
+      text-align: center;
+    }
+
+    .footer p {
+      color: #b0b0b0;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+    }
+
+    .footer-links a {
+      color: #b0b0b0;
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.3s ease;
+    }
+
+    .footer-links a:hover {
+      color: #ffffff;
+    }
+
+    /* Light theme */
+    body.light {
+      background: #ffffff;
+      color: #212529;
+    }
+
+    body.light .header,
+    body.light .stat-card,
+    body.light .device-card,
+    body.light .loading,
+    body.light .error,
+    body.light .footer {
+      background: #f8f9fa;
+      border-color: #dee2e6;
+      color: #212529;
+    }
+
+    body.light .header h1 {
+      background: linear-gradient(135deg, #000000, #495057);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    body.light .header p,
+    body.light .stat-content h3,
+    body.light .device-vendor,
+    body.light .device-count,
+    body.light .label,
+    body.light .footer p,
+    body.light .footer-links a {
+      color: #495057;
+    }
+
+    body.light .stat-number,
+    body.light .device-title h3,
+    body.light .value,
+    body.light .confidence-text {
+      color: #212529;
+    }
+
+    body.light .theme-toggle {
+      background: #e9ecef;
+      border-color: #dee2e6;
+      color: #212529;
+    }
+
+    body.light .theme-toggle:hover {
+      background: #ffffff;
+    }
+
+    body.light .refresh-btn,
+    body.light .retry-btn {
+      background: #000000;
+      color: #ffffff;
+    }
+
+    body.light .confidence-bar {
+      background: #e9ecef;
+    }
+
+    body.light .loading-spinner {
+      border-color: #dee2e6;
+      border-top-color: #000000;
+    }
+
+    body.light .section-header,
+    body.light .device-header {
+      border-bottom-color: #dee2e6;
+    }
+
+    body.light .device-card:hover {
+      border-color: #000000;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 1rem;
+      }
+
+      .header-controls {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+      }
+
+      .devices-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .section-header {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+      }
+
+      .footer-links {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      .device-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+      }
+
+      .device-badges {
+        flex-direction: row;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔒 IoT Security Dashboard</h1>
+      <p>Research-Grade Agentless IoT/IIoT Security Monitoring Platform - Test Interface</p>
+      <div class="header-controls">
+        <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+        <button class="refresh-btn" onclick="loadDevices()">🔄 Refresh Data</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-content">
+          <h3>Total Devices</h3>
+          <div class="stat-number" id="totalDevices">-</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-content">
+          <h3>Active Devices</h3>
+          <div class="stat-number" id="activeDevices">-</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⚠️</div>
+        <div class="stat-content">
+          <h3>High Risk</h3>
+          <div class="stat-number" id="highRiskDevices">-</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-content">
+          <h3>Avg Confidence</h3>
+          <div class="stat-number" id="avgConfidence">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <h2>🔍 Discovered Devices</h2>
+      <span class="device-count" id="deviceCount">Loading...</span>
+    </div>
+
+    <div id="devicesContainer">
+      <div class="loading">
+        <div class="loading-spinner"></div>
+        <p>Scanning network for IoT devices...</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>IoT Security Dashboard v2.0.0 - Research Platform</p>
+      <div class="footer-links">
+        <a href="http://localhost:5000/docs" target="_blank">📚 API Documentation</a>
+        <a href="http://localhost:5000/health" target="_blank">💚 Health Check</a>
+        <a href="http://localhost:3000" target="_blank">⚛️ React App</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let isDarkMode = true;
+
+    function toggleTheme() {
+      isDarkMode = !isDarkMode;
+      document.body.className = isDarkMode ? '' : 'light';
+      document.querySelector('.theme-toggle').textContent = isDarkMode ? '🌙' : '☀️';
+    }
+
+    function getRiskColor(riskScore) {
+      if (riskScore >= 0.7) return '#ff4757';
+      if (riskScore >= 0.4) return '#ffa502';
+      if (riskScore >= 0.2) return '#ffb142';
+      return '#2ed573';
+    }
+
+    function getRiskLevel(riskScore) {
+      if (riskScore >= 0.7) return 'Critical';
+      if (riskScore >= 0.4) return 'High';
+      if (riskScore >= 0.2) return 'Medium';
+      return 'Low';
+    }
+
+    function getDeviceIcon(deviceType) {
+      const type = deviceType?.toLowerCase() || '';
+      if (type.includes('camera')) return '📹';
+      if (type.includes('thermostat')) return '🌡️';
+      if (type.includes('speaker')) return '🔊';
+      if (type.includes('light')) return '💡';
+      if (type.includes('lock')) return '🔒';
+      if (type.includes('router')) return '📡';
+      if (type.includes('printer')) return '🖨️';
+      return '📱';
+    }
+
+    function formatDate(dateString) {
+      return new Date(dateString).toLocaleString();
+    }
+
+    async function loadDevices() {
+      try {
+        const response = await fetch('http://localhost:5000/api/devices/');
+        const data = await response.json();
+        const devices = data.items || [];
+
+        // Update stats
+        document.getElementById('totalDevices').textContent = devices.length;
+        document.getElementById('activeDevices').textContent = devices.filter(d => d.status === 'active').length;
+        document.getElementById('highRiskDevices').textContent = devices.filter(d => d.risk_score >= 0.4).length;
+        document.getElementById('deviceCount').textContent = `${devices.length} devices found`;
+
+        const avgConfidence = devices.length > 0
+          ? Math.round(devices.reduce((sum, d) => sum + d.confidence_score, 0) / devices.length * 100)
+          : 0;
+        document.getElementById('avgConfidence').textContent = avgConfidence + '%';
+
+        // Render devices
+        const container = document.getElementById('devicesContainer');
+
+        if (devices.length === 0) {
+          container.innerHTML = `
+                        <div class="loading">
+                            <div style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.6;">🔍</div>
+                            <h3>No Devices Found</h3>
+                            <p>The system is actively monitoring your network for IoT devices.</p>
+                            <button class="retry-btn" onclick="loadDevices()">🔄 Scan Again</button>
+                        </div>
+                    `;
+          return;
+        }
+
+        const devicesHTML = devices.map(device => `
+                    <div class="device-card">
+                        <div class="device-header">
+                            <div class="device-title">
+                                <span class="device-icon">${getDeviceIcon(device.device_type)}</span>
+                                <div>
+                                    <h3>${device.device_type || 'Unknown Device'}</h3>
+                                    <div class="device-vendor">${device.vendor || 'Unknown Vendor'}</div>
+                                </div>
+                            </div>
+                            <div class="device-badges">
+                                <div class="risk-badge" style="background-color: ${getRiskColor(device.risk_score)}">
+                                    ${getRiskLevel(device.risk_score)}
+                                </div>
+                                <div class="status-badge ${device.status}">
+                                    ${device.status}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="device-details">
+                            <div class="detail-row">
+                                <span class="label">🌐 IP Address</span>
+                                <span class="value">${device.ip_address}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">🔗 MAC Address</span>
+                                <span class="value">${device.mac_address || 'N/A'}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">🎯 Confidence</span>
+                                <span class="value">
+                                    <div class="confidence-bar">
+                                        <div class="confidence-fill" style="width: ${device.confidence_score * 100}%"></div>
+                                        <span class="confidence-text">${Math.round(device.confidence_score * 100)}%</span>
+                                    </div>
+                                </span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">⏰ Last Seen</span>
+                                <span class="value">${formatDate(device.last_seen)}</span>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+        container.innerHTML = `<div class="devices-grid">${devicesHTML}</div>`;
+
+      } catch (error) {
+        console.error('Error loading devices:', error);
+        document.getElementById('devicesContainer').innerHTML = `
+                    <div class="error">
+                        <div class="error-icon">❌</div>
+                        <h3>Connection Error</h3>
+                        <p>Failed to load devices: ${error.message}</p>
+                        <button class="retry-btn" onclick="loadDevices()">🔄 Retry</button>
+                    </div>
+                `;
+      }
+    }
+
+    // Load devices on page load
+    loadDevices();
+  </script>
+</body>
+
+</html>
