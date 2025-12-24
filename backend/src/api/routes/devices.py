@@ -1,22 +1,104 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 import asyncio
+from datetime import datetime, timedelta
+import random
 
 from ..models import (
     DeviceResponse, DeviceCreate, DeviceUpdate, DeviceFingerprint,
     PaginationParams, PaginatedResponse
 )
-from ...database.session import get_db
-from ...database.models import Device, Alert, Vulnerability
 from ...detection_engine.fingerprinter import DeviceFingerprinter
 from ...utils.logger import setup_logger
 from ...utils.metrics import METRICS
 
 logger = setup_logger(__name__)
 router = APIRouter()
+
+# Mock device data for development
+MOCK_DEVICES = [
+    {
+        "id": uuid4(),
+        "device_type": "Smart Camera",
+        "vendor": "Hikvision",
+        "model": "DS-2CD2143G0-I",
+        "firmware_version": "V5.6.3",
+        "ip_address": "192.168.1.100",
+        "mac_address": "00:11:22:33:44:55",
+        "status": "active",
+        "risk_score": 0.3,
+        "confidence_score": 0.95,
+        "first_seen": datetime.utcnow() - timedelta(days=30),
+        "last_seen": datetime.utcnow() - timedelta(minutes=5),
+        "created_at": datetime.utcnow() - timedelta(days=30),
+        "updated_at": datetime.utcnow() - timedelta(minutes=5)
+    },
+    {
+        "id": uuid4(),
+        "device_type": "Smart Thermostat",
+        "vendor": "Nest",
+        "model": "Learning Thermostat",
+        "firmware_version": "6.0.1",
+        "ip_address": "192.168.1.101",
+        "mac_address": "00:11:22:33:44:56",
+        "status": "active",
+        "risk_score": 0.1,
+        "confidence_score": 0.92,
+        "first_seen": datetime.utcnow() - timedelta(days=15),
+        "last_seen": datetime.utcnow() - timedelta(minutes=2),
+        "created_at": datetime.utcnow() - timedelta(days=15),
+        "updated_at": datetime.utcnow() - timedelta(minutes=2)
+    },
+    {
+        "id": uuid4(),
+        "device_type": "Smart Speaker",
+        "vendor": "Amazon",
+        "model": "Echo Dot",
+        "firmware_version": "4.0.2",
+        "ip_address": "192.168.1.102",
+        "mac_address": "00:11:22:33:44:57",
+        "status": "active",
+        "risk_score": 0.2,
+        "confidence_score": 0.88,
+        "first_seen": datetime.utcnow() - timedelta(days=7),
+        "last_seen": datetime.utcnow() - timedelta(minutes=1),
+        "created_at": datetime.utcnow() - timedelta(days=7),
+        "updated_at": datetime.utcnow() - timedelta(minutes=1)
+    },
+    {
+        "id": uuid4(),
+        "device_type": "Smart Light",
+        "vendor": "Philips",
+        "model": "Hue Bulb",
+        "firmware_version": "1.50.2",
+        "ip_address": "192.168.1.103",
+        "mac_address": "00:11:22:33:44:58",
+        "status": "active",
+        "risk_score": 0.05,
+        "confidence_score": 0.85,
+        "first_seen": datetime.utcnow() - timedelta(days=3),
+        "last_seen": datetime.utcnow() - timedelta(seconds=30),
+        "created_at": datetime.utcnow() - timedelta(days=3),
+        "updated_at": datetime.utcnow() - timedelta(seconds=30)
+    },
+    {
+        "id": uuid4(),
+        "device_type": "Smart Lock",
+        "vendor": "August",
+        "model": "Smart Lock Pro",
+        "firmware_version": "2.1.0",
+        "ip_address": "192.168.1.104",
+        "mac_address": "00:11:22:33:44:59",
+        "status": "active",
+        "risk_score": 0.4,
+        "confidence_score": 0.90,
+        "first_seen": datetime.utcnow() - timedelta(days=1),
+        "last_seen": datetime.utcnow() - timedelta(minutes=10),
+        "created_at": datetime.utcnow() - timedelta(days=1),
+        "updated_at": datetime.utcnow() - timedelta(minutes=10)
+    }
+]
 
 @router.get("/", response_model=PaginatedResponse)
 async def list_devices(
@@ -26,91 +108,67 @@ async def list_devices(
     vendor: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     risk_threshold: Optional[float] = Query(None, ge=0, le=1),
-    search: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db)
+    search: Optional[str] = Query(None)
 ):
     """List devices with filtering and pagination"""
     
-    # Build query
-    query = select(Device)
-    count_query = select(func.count(Device.id))
-    
-    # Apply filters
-    filters = []
+    # Filter devices based on query parameters
+    filtered_devices = MOCK_DEVICES.copy()
     
     if device_type:
-        filters.append(Device.device_type == device_type)
+        filtered_devices = [d for d in filtered_devices if d["device_type"] == device_type]
     
     if vendor:
-        filters.append(Device.vendor == vendor)
+        filtered_devices = [d for d in filtered_devices if d["vendor"] == vendor]
     
     if status:
-        filters.append(Device.status == status)
+        filtered_devices = [d for d in filtered_devices if d["status"] == status]
     
     if risk_threshold is not None:
-        filters.append(Device.risk_score >= risk_threshold)
+        filtered_devices = [d for d in filtered_devices if d["risk_score"] >= risk_threshold]
     
     if search:
-        search_filter = or_(
-            Device.device_type.ilike(f"%{search}%"),
-            Device.vendor.ilike(f"%{search}%"),
-            Device.ip_address.cast(str).ilike(f"%{search}%")
-        )
-        filters.append(search_filter)
+        search_lower = search.lower()
+        filtered_devices = [
+            d for d in filtered_devices 
+            if search_lower in d["device_type"].lower() 
+            or search_lower in d["vendor"].lower()
+            or search_lower in d["ip_address"]
+        ]
     
-    if filters:
-        query = query.where(and_(*filters))
-        count_query = count_query.where(and_(*filters))
-    
-    # Get total count
-    total_result = await db.execute(count_query)
-    total = total_result.scalar()
+    total = len(filtered_devices)
     
     # Apply pagination
-    offset = (page - 1) * size
-    query = query.offset(offset).limit(size).order_by(Device.last_seen.desc())
-    
-    # Execute query
-    result = await db.execute(query)
-    devices = result.scalars().all()
+    start_idx = (page - 1) * size
+    end_idx = start_idx + size
+    paginated_devices = filtered_devices[start_idx:end_idx]
     
     # Update metrics
     METRICS.update_device_count(total)
     
     return PaginatedResponse(
-        items=[DeviceResponse.from_orm(device) for device in devices],
+        items=paginated_devices,
         total=total,
         page=page,
         size=size
     )
 
-@router.get("/{device_id}", response_model=DeviceResponse)
-async def get_device(
-    device_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
+@router.get("/{device_id}")
+async def get_device(device_id: UUID):
     """Get device details by ID"""
     
-    query = select(Device).where(Device.id == device_id)
-    result = await db.execute(query)
-    device = result.scalar_one_or_none()
+    device = next((d for d in MOCK_DEVICES if d["id"] == device_id), None)
     
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     
-    return DeviceResponse.from_orm(device)
+    return device
 
 @router.post("/{device_id}/fingerprint", response_model=DeviceFingerprint)
-async def fingerprint_device(
-    device_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
+async def fingerprint_device(device_id: UUID):
     """Re-fingerprint a specific device"""
     
-    # Get device
-    query = select(Device).where(Device.id == device_id)
-    result = await db.execute(query)
-    device = result.scalar_one_or_none()
+    device = next((d for d in MOCK_DEVICES if d["id"] == device_id), None)
     
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -119,15 +177,8 @@ async def fingerprint_device(
         # Initialize fingerprinter
         fingerprinter = DeviceFingerprinter()
         
-        # Mock fingerprinting process (in real implementation, this would analyze network traffic)
-        fingerprint_result = await fingerprinter.fingerprint_device(str(device.ip_address))
-        
-        # Update device with new fingerprint data
-        device.device_type = fingerprint_result.get("device_type", device.device_type)
-        device.vendor = fingerprint_result.get("vendor", device.vendor)
-        device.confidence_score = fingerprint_result.get("confidence", device.confidence_score)
-        
-        await db.commit()
+        # Mock fingerprinting process
+        fingerprint_result = await fingerprinter.fingerprint_device(device["ip_address"])
         
         # Record metrics
         METRICS.record_device_identification(
@@ -149,94 +200,52 @@ async def fingerprint_device(
         logger.error(f"Fingerprinting failed for device {device_id}: {e}")
         raise HTTPException(status_code=500, detail="Fingerprinting failed")
 
-@router.put("/{device_id}", response_model=DeviceResponse)
-async def update_device(
-    device_id: UUID,
-    device_update: DeviceUpdate,
-    db: AsyncSession = Depends(get_db)
-):
-    """Update device information"""
-    
-    # Get device
-    query = select(Device).where(Device.id == device_id)
-    result = await db.execute(query)
-    device = result.scalar_one_or_none()
-    
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    
-    # Update fields
-    update_data = device_update.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(device, field, value)
-    
-    await db.commit()
-    await db.refresh(device)
-    
-    logger.info(f"Device {device_id} updated")
-    
-    return DeviceResponse.from_orm(device)
-
-@router.delete("/{device_id}")
-async def delete_device(
-    device_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
-    """Delete a device (admin only)"""
-    
-    # Get device
-    query = select(Device).where(Device.id == device_id)
-    result = await db.execute(query)
-    device = result.scalar_one_or_none()
-    
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    
-    # Delete device (cascades to related records)
-    await db.delete(device)
-    await db.commit()
-    
-    logger.info(f"Device {device_id} deleted")
-    
-    return {"message": "Device deleted successfully"}
-
 @router.get("/{device_id}/alerts")
 async def get_device_alerts(
     device_id: UUID,
     page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=1000),
-    db: AsyncSession = Depends(get_db)
+    size: int = Query(50, ge=1, le=1000)
 ):
     """Get alerts for a specific device"""
     
-    # Verify device exists
-    device_query = select(Device).where(Device.id == device_id)
-    device_result = await db.execute(device_query)
-    device = device_result.scalar_one_or_none()
+    device = next((d for d in MOCK_DEVICES if d["id"] == device_id), None)
     
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     
-    # Get alerts
-    offset = (page - 1) * size
-    query = (
-        select(Alert)
-        .where(Alert.device_id == device_id)
-        .order_by(Alert.created_at.desc())
-        .offset(offset)
-        .limit(size)
-    )
+    # Mock alerts data
+    mock_alerts = [
+        {
+            "id": uuid4(),
+            "device_id": device_id,
+            "title": "Unusual Network Activity",
+            "description": "Device showing abnormal traffic patterns",
+            "severity": "medium",
+            "alert_type": "anomaly",
+            "status": "open",
+            "created_at": datetime.utcnow() - timedelta(hours=2),
+            "updated_at": datetime.utcnow() - timedelta(hours=2)
+        },
+        {
+            "id": uuid4(),
+            "device_id": device_id,
+            "title": "Firmware Vulnerability",
+            "description": "Outdated firmware version detected",
+            "severity": "high",
+            "alert_type": "vulnerability",
+            "status": "open",
+            "created_at": datetime.utcnow() - timedelta(days=1),
+            "updated_at": datetime.utcnow() - timedelta(days=1)
+        }
+    ]
     
-    result = await db.execute(query)
-    alerts = result.scalars().all()
-    
-    # Get total count
-    count_query = select(func.count(Alert.id)).where(Alert.device_id == device_id)
-    total_result = await db.execute(count_query)
-    total = total_result.scalar()
+    total = len(mock_alerts)
+    start_idx = (page - 1) * size
+    end_idx = start_idx + size
+    paginated_alerts = mock_alerts[start_idx:end_idx]
     
     return PaginatedResponse(
-        items=alerts,
+        items=paginated_alerts,
         total=total,
         page=page,
         size=size
@@ -246,39 +255,50 @@ async def get_device_alerts(
 async def get_device_vulnerabilities(
     device_id: UUID,
     page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=1000),
-    db: AsyncSession = Depends(get_db)
+    size: int = Query(50, ge=1, le=1000)
 ):
     """Get vulnerabilities for a specific device"""
     
-    # Verify device exists
-    device_query = select(Device).where(Device.id == device_id)
-    device_result = await db.execute(device_query)
-    device = device_result.scalar_one_or_none()
+    device = next((d for d in MOCK_DEVICES if d["id"] == device_id), None)
     
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     
-    # Get vulnerabilities
-    offset = (page - 1) * size
-    query = (
-        select(Vulnerability)
-        .where(Vulnerability.device_id == device_id)
-        .order_by(Vulnerability.cvss_score.desc())
-        .offset(offset)
-        .limit(size)
-    )
+    # Mock vulnerabilities data
+    mock_vulnerabilities = [
+        {
+            "id": uuid4(),
+            "device_id": device_id,
+            "cve_id": "CVE-2023-1234",
+            "title": "Buffer Overflow in Web Interface",
+            "description": "A buffer overflow vulnerability exists in the web management interface",
+            "cvss_score": 7.5,
+            "severity": "high",
+            "status": "open",
+            "created_at": datetime.utcnow() - timedelta(days=5),
+            "updated_at": datetime.utcnow() - timedelta(days=5)
+        },
+        {
+            "id": uuid4(),
+            "device_id": device_id,
+            "cve_id": "CVE-2023-5678",
+            "title": "Weak Default Credentials",
+            "description": "Device uses weak default credentials",
+            "cvss_score": 5.3,
+            "severity": "medium",
+            "status": "open",
+            "created_at": datetime.utcnow() - timedelta(days=10),
+            "updated_at": datetime.utcnow() - timedelta(days=10)
+        }
+    ]
     
-    result = await db.execute(query)
-    vulnerabilities = result.scalars().all()
-    
-    # Get total count
-    count_query = select(func.count(Vulnerability.id)).where(Vulnerability.device_id == device_id)
-    total_result = await db.execute(count_query)
-    total = total_result.scalar()
+    total = len(mock_vulnerabilities)
+    start_idx = (page - 1) * size
+    end_idx = start_idx + size
+    paginated_vulns = mock_vulnerabilities[start_idx:end_idx]
     
     return PaginatedResponse(
-        items=vulnerabilities,
+        items=paginated_vulns,
         total=total,
         page=page,
         size=size
@@ -287,23 +307,16 @@ async def get_device_vulnerabilities(
 @router.get("/{device_id}/traffic")
 async def get_device_traffic(
     device_id: UUID,
-    hours: int = Query(24, ge=1, le=168),  # 1 hour to 1 week
-    db: AsyncSession = Depends(get_db)
+    hours: int = Query(24, ge=1, le=168)  # 1 hour to 1 week
 ):
     """Get network traffic patterns for a device"""
     
-    # Verify device exists
-    device_query = select(Device).where(Device.id == device_id)
-    device_result = await db.execute(device_query)
-    device = device_result.scalar_one_or_none()
+    device = next((d for d in MOCK_DEVICES if d["id"] == device_id), None)
     
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     
-    # Mock traffic data (in real implementation, query from InfluxDB or time-series DB)
-    import random
-    from datetime import datetime, timedelta
-    
+    # Mock traffic data
     traffic_data = {
         "device_id": str(device_id),
         "time_range_hours": hours,
@@ -329,21 +342,15 @@ async def get_device_traffic(
     return traffic_data
 
 @router.post("/{device_id}/scan")
-async def scan_device(
-    device_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
+async def scan_device(device_id: UUID):
     """Trigger security scan for a device"""
     
-    # Verify device exists
-    device_query = select(Device).where(Device.id == device_id)
-    device_result = await db.execute(device_query)
-    device = device_result.scalar_one_or_none()
+    device = next((d for d in MOCK_DEVICES if d["id"] == device_id), None)
     
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     
-    # Trigger background scan task
+    # Mock scan task
     from ...tasks.device_tasks import scan_device_task
     
     task = scan_device_task.delay(str(device_id))
