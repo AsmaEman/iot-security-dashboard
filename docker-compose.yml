@@ -1,22 +1,109 @@
 services:
+  # Backend API
   backend:
     build: ./backend
+    image: iot-security-backend:latest
+    container_name: iot-security-backend
     ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
+      - "5000:5000"
     environment:
-      - PYTHONPATH=/app/src
-      - DATABASE_URL=sqlite:///./iot_security.db
+      - DATABASE_URL=postgresql://iotuser:iotpass123@db:5432/iotdb
+      - REDIS_URL=redis://:redispass123@redis:6379/0
+      - ML_MODELS_PATH=/app/ml_models
+      - LOG_LEVEL=INFO
+      - SECRET_KEY=dev-secret-key-123
+    volumes:
+      - ./backend/src:/app/src
+      - ./datasets:/app/datasets
+      - ml_models:/app/ml_models
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - iot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # Frontend
   frontend:
     build: ./frontend
+    image: iot-security-frontend:latest
+    container_name: iot-security-frontend
     ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
+      - "3000:80"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000/api/v1
+      - REACT_APP_API_URL=http://localhost:5000
+      - REACT_APP_WS_URL=ws://localhost:5000/ws
     depends_on:
       - backend
+    networks:
+      - iot-network
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: iot-postgres
+    environment:
+      - POSTGRES_USER=iotuser
+      - POSTGRES_PASSWORD=iotpass123
+      - POSTGRES_DB=iotdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - iot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iotuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: iot-redis
+    command: redis-server --appendonly yes --requirepass redispass123
+    volumes:
+      - redis_data:/data
+    networks:
+      - iot-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redispass123", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Celery Worker
+  celery:
+    build: ./backend
+    container_name: iot-celery
+    command: celery -A src.tasks.celery_app worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://iotuser:iotpass123@db:5432/iotdb
+      - REDIS_URL=redis://:redispass123@redis:6379/0
+      - ML_MODELS_PATH=/app/ml_models
+    volumes:
+      - ./backend/src:/app/src
+      - ./datasets:/app/datasets
+      - ml_models:/app/ml_models
+    depends_on:
+      - db
+      - redis
+    networks:
+      - iot-network
+
+networks:
+  iot-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  ml_models:
