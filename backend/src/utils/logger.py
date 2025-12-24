@@ -1,42 +1,55 @@
 import logging
 import sys
+from loguru import logger
 from typing import Optional
-from pathlib import Path
+import os
 
-def setup_logger(
-    name: str,
-    level: str = "INFO",
-    log_file: Optional[str] = None,
-    format_string: Optional[str] = None
-) -> logging.Logger:
-    """Setup logger with consistent formatting"""
+def setup_logger(name: str, level: str = None) -> logging.Logger:
+    """Setup structured logger with Loguru"""
     
-    if format_string is None:
-        format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    # Get log level from environment or parameter
+    log_level = level or os.getenv("LOG_LEVEL", "INFO")
     
-    # Create logger
-    logger = logging.getLogger(name)
-    logger.setLevel(getattr(logging, level.upper()))
+    # Remove default handler
+    logger.remove()
     
-    # Remove existing handlers
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
+    # Add console handler with structured format
+    logger.add(
+        sys.stdout,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        level=log_level,
+        colorize=True
+    )
     
-    # Create formatter
-    formatter = logging.Formatter(format_string)
+    # Add file handler for production
+    if os.getenv("LOG_FILE"):
+        logger.add(
+            os.getenv("LOG_FILE"),
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
+            level=log_level,
+            rotation="100 MB",
+            retention="30 days",
+            compression="gz"
+        )
     
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+    # Create standard logger that forwards to loguru
+    class InterceptHandler(logging.Handler):
+        def emit(self, record):
+            # Get corresponding Loguru level if it exists
+            try:
+                level = logger.level(record.levelname).name
+            except ValueError:
+                level = record.levelno
+
+            # Find caller from where originated the logged message
+            frame, depth = logging.currentframe(), 2
+            while frame.f_code.co_filename == logging.__file__:
+                frame = frame.f_back
+                depth += 1
+
+            logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+    # Setup standard logging to use loguru
+    logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
     
-    # File handler (optional)
-    if log_file:
-        log_path = Path(log_file)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-    
-    return logger
+    return logging.getLogger(name)
