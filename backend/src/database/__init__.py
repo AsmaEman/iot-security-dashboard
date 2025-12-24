@@ -1,1 +1,1 @@
-# Database module for IoT Security Dashboard
+# Database module

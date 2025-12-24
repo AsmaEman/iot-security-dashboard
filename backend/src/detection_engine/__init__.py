@@ -1,1 +1,1 @@
-# Detection engine module for IoT Security Dashboard
+# Detection engine module
